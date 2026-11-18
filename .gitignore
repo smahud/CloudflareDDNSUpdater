@@ -1,7 +1,9 @@
 # Build outputs
-dist/
 build/
 *.spec
+
+# Keep dist/CloudflareDDNS.exe for distribution
+!dist/CloudflareDDNS.exe
 
 # Python cache
 __pycache__/
