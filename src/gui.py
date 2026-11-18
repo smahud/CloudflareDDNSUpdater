@@ -38,8 +38,8 @@ class DDNSGuiApp:
         self.root = root
         self.base_dir = get_base_dir()
         self.root.title("Cloudflare DDNS Updater")
-        self.root.geometry("480x480")
-        self.root.minsize(480, 480)
+        self.root.geometry("480x420")
+        self.root.minsize(480, 420)
         self.root.resizable(True, False)
 
         # App state
