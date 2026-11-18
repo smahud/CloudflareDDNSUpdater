@@ -1,0 +1,38 @@
+# Build outputs
+dist/
+build/
+*.spec
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local config (contains secrets)
+config.yaml
+
+# Build scripts
+create_icon.py
+icon.ico
+
+# Data files with tokens
+data.txt
+
+# Python virtual environments
+venv/
+env/
+.env

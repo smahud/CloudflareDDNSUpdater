@@ -1,0 +1,58 @@
+# Cloudflare DDNS Updater - Linux Configuration
+# Copy to /etc/cloudflare-ddns/config.yaml and customize
+# REQUIRED: Edit this file BEFORE running install.sh
+
+# Update interval in minutes (minimum 1)
+interval_minutes: 15
+
+# Cloudflare API Token (create at https://dash.cloudflare.com/profile/api-tokens)
+# Required permissions: Zone > DNS > Edit, Zone > Zone > Read
+api_token: "your-api-token-here"
+
+# Zone identifier: domain name (e.g., example.com) or Zone ID (32-char hex)
+zone_identifier: "yourdomain.com"
+
+# DNS Records to manage - ONLY these records will be touched
+records:
+  # A record for IPv4
+  - name: "home"           # subdomain (home.yourdomain.com)
+    type: "A"              # A or AAAA
+    proxied: false         # true = Cloudflare proxy, false = DNS only
+    comment: "DDNS managed - Home IPv4"
+    ttl: 1                 # 1 = auto, or specific seconds (e.g., 300)
+
+  # AAAA record for IPv6 (uses IPv4-mapped IPv6 if no native IPv6)
+  - name: "home"
+    type: "AAAA"
+    proxied: false
+    comment: "DDNS managed - Home IPv6"
+    ttl: 1
+
+  # Example: root domain (@)
+  - name: "@"
+    type: "A"
+    proxied: false
+    comment: "DDNS managed - Root domain"
+
+  # Example: VPN endpoint
+  - name: "vpn"
+    type: "A"
+    proxied: true          # Proxied through Cloudflare
+    comment: "DDNS managed - WireGuard"
+
+# IP Detection settings
+ip_detection:
+  ipv4_enabled: true
+  ipv6_enabled: true
+  # Multiple providers for fallback (tried in order)
+  providers:
+    - "https://api.ipify.org"
+    - "https://ifconfig.me/ip"
+    - "https://ipinfo.io/ip"
+    - "https://icanhazip.com"
+    - "https://ident.me"
+  timeout_seconds: 10
+
+# Logging
+log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+log_file: "/var/log/cloudflare-ddns.log"
