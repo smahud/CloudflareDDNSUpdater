@@ -38,8 +38,8 @@ class DDNSGuiApp:
         self.root = root
         self.base_dir = get_base_dir()
         self.root.title("Cloudflare DDNS Updater")
-        self.root.geometry("460x440")
-        self.root.minsize(460, 440)
+        self.root.geometry("480x480")
+        self.root.minsize(480, 480)
         self.root.resizable(True, False)
 
         # App state
@@ -79,9 +79,8 @@ class DDNSGuiApp:
         # Initialize components and start auto-scheduler
         self.root.after(100, self.initialize_app)
 
-        # Auto-hide on start if enabled
-        if self.auto_hide_enabled:
-            self.root.after(200, self.hide_window)
+        # GUI always shows first on startup
+        # Auto-hide only applies when user clicks close button
 
     def load_or_create_config(self):
         """Load config from file or create default."""
@@ -242,8 +241,12 @@ class DDNSGuiApp:
         bottom = ttk.Frame(main)
         bottom.pack(fill=tk.X, pady=(6, 0))
 
-        # Left: IP Status
-        ip_frame = ttk.Frame(bottom)
+        # Row 1: IP Status (left) + Update Now (right)
+        ip_ctrl_frame = ttk.Frame(bottom)
+        ip_ctrl_frame.pack(fill=tk.X, pady=(0, 4))
+
+        # IP Status (left)
+        ip_frame = ttk.Frame(ip_ctrl_frame)
         ip_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         self.ipv4_var = tk.StringVar(value="IPv4: detecting...")
@@ -251,24 +254,23 @@ class DDNSGuiApp:
         ttk.Label(ip_frame, textvariable=self.ipv4_var, font=("Segoe UI", 9)).pack(anchor=tk.W)
         ttk.Label(ip_frame, textvariable=self.ipv6_var, font=("Segoe UI", 9)).pack(anchor=tk.W)
 
-        # Right: Buttons & Toggles
-        ctrl_frame = ttk.Frame(bottom)
-        ctrl_frame.pack(side=tk.RIGHT)
+        # Update Now button (right)
+        self.update_btn = ttk.Button(ip_ctrl_frame, text="Update Now", command=self.manual_update, width=14)
+        self.update_btn.pack(side=tk.RIGHT, padx=(8, 0))
 
-        # Update Now button (main action)
-        self.update_btn = ttk.Button(ctrl_frame, text="Update Now", command=self.manual_update, width=14)
-        self.update_btn.pack(side=tk.LEFT, padx=(0, 8))
+        # Row 2: Toggles (full width, centered)
+        toggle_frame = ttk.Frame(bottom)
+        toggle_frame.pack(fill=tk.X)
 
-        # Toggles
         self.auto_start_var = tk.BooleanVar(value=self.auto_start_enabled)
-        ttk.Checkbutton(ctrl_frame, text="Auto-start", variable=self.auto_start_var,
-                        command=self.toggle_auto_start).pack(side=tk.LEFT, padx=(0, 8))
+        ttk.Checkbutton(toggle_frame, text="Auto-start with Windows", variable=self.auto_start_var,
+                        command=self.toggle_auto_start).pack(side=tk.LEFT, padx=(0, 16))
 
         self.auto_hide_var = tk.BooleanVar(value=self.auto_hide_enabled)
-        ttk.Checkbutton(ctrl_frame, text="Hide to tray on close", variable=self.auto_hide_var,
-                        command=self.toggle_auto_hide).pack(side=tk.LEFT, padx=(0, 8))
+        ttk.Checkbutton(toggle_frame, text="Hide to tray on close", variable=self.auto_hide_var,
+                        command=self.toggle_auto_hide).pack(side=tk.LEFT, padx=(0, 16))
 
-        ttk.Button(ctrl_frame, text="Hide", command=self.hide_window, width=8).pack(side=tk.LEFT)
+        ttk.Button(toggle_frame, text="Hide to Tray", command=self.hide_window, width=12).pack(side=tk.LEFT)
 
     def build_record_rows(self):
         """Build input rows for each DNS record."""
@@ -637,10 +639,11 @@ class DDNSGuiApp:
 
     def on_close(self):
         """Close button behavior:
-        - If 'Hide to tray on close' is checked: hide to tray
+        - If 'Hide to tray on close' checkbox is checked: hide to tray
         - Otherwise: quit application
         """
-        if self.auto_hide_enabled:
+        # Check the checkbox VARIABLE (current UI state), not saved setting
+        if self.auto_hide_var.get():
             self.hide_window()
         else:
             self.quit_app()
