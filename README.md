@@ -1,139 +1,173 @@
 # Cloudflare DDNS Updater
 
-A Python-based Dynamic DNS updater for Cloudflare that automatically updates A/AAAA records with your current public IP address.
+A cross-platform Dynamic DNS updater for Cloudflare with **Windows GUI** and **Linux systemd service**. Automatically updates A/AAAA records with your current public IP address.
 
-## Features
+## 🎯 Features
 
-- **Multiple record support**: Manage multiple A and AAAA records
-- **IPv4 & IPv6 detection**: Automatic detection with fallback providers
-- **Scoped API Token**: Uses Cloudflare API Token (not Global API Key) for security
-- **Configurable interval**: Run updates at any minute interval
-- **Change detection**: Only updates records when IP actually changes
-- **Structured logging**: Console and file logging with levels
-- **Graceful shutdown**: Handles SIGINT/SIGTERM properly
+| Feature | Windows | Linux |
+|---------|---------|-------|
+| **GUI Application** | ✅ Compact 460×360 window | ❌ (CLI only) |
+| **System Tray** | ✅ Show/Update Now/Close App | ❌ |
+| **Auto-start** | ✅ Registry integration | ✅ systemd enable |
+| **Background Service** | ✅ `--service` mode | ✅ systemd service |
+| **IPv4 Detection** | ✅ Multi-provider fallback | ✅ Multi-provider fallback |
+| **IPv6 Detection** | ✅ Native + IPv4-mapped fallback | ✅ Native + IPv4-mapped fallback |
+| **Change Detection** | ✅ Only updates on IP change | ✅ Only updates on IP change |
+| **Config Auto-save** | ✅ Real-time YAML persistence | ✅ Manual edit |
 
-## Quick Start
+## 📦 Quick Start
 
-### 1. Create Cloudflare API Token
+### Windows (GUI)
+```bash
+# Double-click CloudflareDDNS.exe or run:
+CloudflareDDNS.exe --gui
 
-Go to [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens) and create a token with:
-- **Permissions**: `Zone > DNS > Edit` + `Zone > Zone > Read`
-- **Zone Resources**: Specific zone (e.g., `yapsidarussalam.or.id`)
+# CLI modes (same executable):
+CloudflareDDNS.exe --test      # Test config & connectivity
+CloudflareDDNS.exe --once      # Single update (Task Scheduler)
+CloudflareDDNS.exe --service   # Background daemon (no GUI)
+```
 
-### 2. Configure
+### Linux (systemd service)
+```bash
+# 1. Copy linux/ to target server
+scp -r linux/ user@server:/tmp/cloudflare-ddns/
 
-Copy `config.yaml.example` to `config.yaml` and edit:
+# 2. Configure BEFORE install (REQUIRED!)
+sudo mkdir -p /etc/cloudflare-ddns
+cp config.yaml.example /etc/cloudflare-ddns/config.yaml
+sudo nano /etc/cloudflare-ddns/config.yaml
+# Fill: api_token, zone_identifier, records
 
+# 3. Install (validates config, creates service, starts it)
+sudo ./install.sh
+
+# Manage service:
+systemctl status cloudflare-ddns
+journalctl -u cloudflare-ddns -f
+systemctl restart cloudflare-ddns
+```
+
+## ⚙️ Configuration
+
+### Create Cloudflare API Token
+1. Go to [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens)
+2. Create Token → Custom token
+3. **Permissions**: `Zone > DNS > Edit` + `Zone > Zone > Read`
+4. **Zone Resources**: Specific zone (your domain)
+
+### Config Structure (`config.yaml`)
 ```yaml
-interval_minutes: 15
-api_token: "your-api-token-here"
-zone_identifier: "yourdomain.com"  # or zone ID
-records:
-  - name: "home"       # subdomain (e.g., home.yourdomain.com)
-    type: "A"
-    proxied: false
+interval_minutes: 15                    # Update interval (min 1)
+api_token: "cf_your_token_here"         # Cloudflare API Token
+zone_identifier: "yourdomain.com"       # Domain or Zone ID
+
+records:                                # Records to manage
+  - name: "home"                        # Subdomain (relative)
+    type: "A"                           # A or AAAA
+    proxied: false                      # Cloudflare proxy
     comment: "DDNS managed"
+    ttl: 1                              # 1 = auto
+
   - name: "home"
-    type: "AAAA"
+    type: "AAAA"                        # Uses ::ffff:<ipv4> if no native IPv6
     proxied: false
     comment: "DDNS managed"
+    ttl: 1
+
+ip_detection:
+  ipv4_enabled: true
+  ipv6_enabled: true
+  providers:                            # Fallback chain
+    - "https://api.ipify.org"
+    - "https://ifconfig.me/ip"
+    - "https://ipinfo.io/ip"
+  timeout_seconds: 10
+
+log_level: "INFO"                       # DEBUG, INFO, WARNING, ERROR
+log_file: "ddns.log"
 ```
 
-### 3. Run
+### Record Name Format
+- Use **relative names**: `home`, `@`, `vpn`
+- `@` = root domain
+- Tool constructs full name: `home.yourdomain.com`
 
+## 🔧 Architecture
+
+```
+src/
+├── main.py           # Entry point (--gui, --service, --once, --test)
+├── gui.py            # Windows GUI (tkinter + pystray)
+├── config.py         # YAML config loader + validation
+├── ip_detector.py    # Public IP detection (IPv4/IPv6)
+├── cloudflare.py     # Cloudflare API client
+└── scheduler.py      # Background scheduler + updater logic
+```
+
+### IPv6 Handling
+- **Native IPv6 available**: Uses real IPv6 address
+- **No native IPv6 + AAAA record configured**: Uses IPv4-mapped IPv6 `::ffff:<ipv4>`
+- This ensures AAAA records always have valid content
+
+## 🔒 Security
+
+| Rule | Implementation |
+|------|----------------|
+| Scoped tokens only | `Zone > DNS > Edit` + `Zone > Zone > Read` |
+| Zone restriction | Token limited to specific zone |
+| No Global API Key | Never supported |
+| Linux hardening | `NoNewPrivileges`, `ProtectSystem=strict`, `PrivateTmp` |
+| Windows | Runs as user, no admin required |
+
+## 📁 Project Structure
+
+```
+CloudflareUpdater/
+├── dist/                       # Windows build output
+│   ├── CloudflareDDNS.exe      # Standalone executable
+│   ├── config.yaml             # Your config (gitignored)
+│   └── run_*.bat               # Launch helpers
+├── linux/                      # Linux deployment package
+│   ├── install.sh              # Validates config, creates service
+│   ├── uninstall.sh            # Clean removal
+│   ├── cloudflare-ddns.service # systemd template
+│   ├── config.yaml.example     # Template
+│   ├── README.md               # Linux docs
+│   └── src/                    # Python modules (copied)
+├── src/                        # Source code
+│   ├── main.py
+│   ├── gui.py
+│   ├── config.py
+│   ├── ip_detector.py
+│   ├── cloudflare.py
+│   └── scheduler.py
+├── config.yaml.example         # Template
+├── requirements.txt
+└── README.md
+```
+
+## 🛠️ Development
+
+### Build Windows Executable
 ```bash
-# Test configuration
+pip install pyinstaller pystray pillow
+pyinstaller --name CloudflareDDNS --onefile --windowed --icon=icon.ico src/main.py
+```
+
+### Run from Source
+```bash
+pip install -r requirements.txt
+
+# GUI
+python -m src.main --gui
+
+# CLI
 python -m src.main --test
-
-# Run once
 python -m src.main --once
-
-# Run as daemon (scheduler)
-python -m src.main
+python -m src.main --service
 ```
 
-## Configuration Reference
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| `interval_minutes` | Update interval in minutes | Required |
-| `api_token` | Cloudflare API Token | Required |
-| `zone_identifier` | Domain name or Zone ID | Required |
-| `records` | List of DNS records to manage | Required |
-| `records[].name` | Subdomain (relative to zone) | Required |
-| `records[].type` | "A" or "AAAA" | Required |
-| `records[].proxied` | Enable Cloudflare proxy | `false` |
-| `records[].comment` | Record comment | `""` |
-| `records[].ttl` | TTL in seconds (1=auto) | `1` |
-| `ip_detection.ipv4_enabled` | Enable IPv4 detection | `true` |
-| `ip_detection.ipv6_enabled` | Enable IPv6 detection | `true` |
-| `ip_detection.providers` | IP detection endpoints | See config |
-| `ip_detection.timeout_seconds` | Request timeout | `10` |
-| `log_level` | Logging level | `INFO` |
-| `log_file` | Log file path | `ddns.log` |
-
-## Record Name Format
-
-- Use **relative names** in config (e.g., `home`, `@`, `vpn`)
-- The tool automatically constructs full DNS names (e.g., `home.yourdomain.com`)
-- `@` represents the root domain
-
-## Running as a Service
-
-### Windows (Task Scheduler)
-1. Create a Basic Task
-2. Trigger: Daily, repeat every 15 minutes
-3. Action: `python.exe` with arguments `-m src.main --once`
-4. Start in: `C:\path\to\CloudflareUpdater`
-
-### Linux (systemd)
-Create `/etc/systemd/system/cloudflare-ddns.service`:
-```ini
-[Unit]
-Description=Cloudflare DDNS Updater
-After=network.target
-
-[Service]
-Type=simple
-WorkingDirectory=/opt/cloudflare-ddns
-ExecStart=/usr/bin/python3 -m src.main
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-systemctl enable --now cloudflare-ddns
-```
-
-### Docker
-```dockerfile
-FROM python:3.12-slim
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-COPY src/ src/
-COPY config.yaml .
-CMD ["python", "-m", "src.main"]
-```
-
-## Logging
-
-Logs are written to both console and `ddns.log` (configurable). Log levels:
-- `DEBUG`: Detailed diagnostic info
-- `INFO`: General operation info (default)
-- `WARNING`: Issues that don't stop operation
-- `ERROR`: Failed operations
-
-## Security Notes
-
-- **Never use Global API Key** - Use scoped API Tokens only
-- **Restrict token permissions** - Only `Zone > DNS > Edit` and `Zone > Zone > Read`
-- **Limit zone access** - Token should only access the specific zone
-- **Rotate tokens periodically** - Treat tokens like passwords
-
-## License
+## 📋 License
 
 MIT License
